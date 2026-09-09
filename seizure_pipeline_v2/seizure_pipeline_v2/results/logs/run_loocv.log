@@ -1,0 +1,181 @@
+2026-09-08 17:17:41,160 [INFO] Stage 1: building per-patient caches...
+2026-09-08 17:17:41,161 [INFO] [chb01] using existing cache
+2026-09-08 17:17:54,955 [INFO] [chb02] using existing cache
+2026-09-08 17:18:07,502 [INFO] [chb03] using existing cache
+2026-09-08 17:18:20,386 [INFO] [chb04] using existing cache
+2026-09-08 17:19:18,969 [INFO] [chb05] using existing cache
+2026-09-08 17:19:32,489 [INFO] [chb06] using existing cache
+2026-09-08 17:19:55,579 [INFO] [chb07] using existing cache
+2026-09-08 17:20:18,275 [INFO] [chb08] using existing cache
+2026-09-08 17:20:25,024 [INFO] [chb09] using existing cache
+2026-09-08 17:20:48,787 [INFO] [chb10] using existing cache
+2026-09-08 17:21:05,822 [INFO] [chb11] using existing cache
+2026-09-08 17:21:17,548 [INFO] [chb12] using existing cache
+2026-09-08 17:21:24,656 [INFO] [chb13] using existing cache
+2026-09-08 17:21:28,393 [INFO] [chb14] using existing cache
+2026-09-08 17:21:37,392 [INFO] [chb15] using existing cache
+2026-09-08 17:21:51,949 [INFO] [chb16] using existing cache
+2026-09-08 17:21:57,718 [INFO] [chb17] using existing cache
+2026-09-08 17:22:04,396 [INFO] [chb18] using existing cache
+2026-09-08 17:22:16,677 [INFO] [chb19] using existing cache
+2026-09-08 17:22:26,544 [INFO] [chb20] using existing cache
+2026-09-08 17:22:36,019 [INFO] [chb22] using existing cache
+2026-09-08 17:22:46,898 [INFO] Stage 2: running LOOCV...
+2026-09-08 17:22:46,903 [INFO] 
+=== Fold 1/21: holding out chb01 ===
+2026-09-08 17:28:08,246 [INFO]   train: 119025 segs (19025 ictal), test: 1782 segs (891 ictal)
+2026-09-08 17:28:08,741 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 17:28:25,784 [INFO]     RF  acc=0.558 sens=0.164 spec=0.952 auc=0.721 thr=0.20
+2026-09-08 17:39:32,226 [INFO]     SVM acc=0.464 sens=0.171 spec=0.756 auc=0.411 thr=0.20
+2026-09-08 17:39:37,361 [INFO]     XGB acc=0.552 sens=0.167 spec=0.937 auc=0.633 thr=0.15
+2026-09-08 17:39:37,610 [INFO] 
+=== Fold 2/21: holding out chb02 ===
+2026-09-08 17:46:06,167 [INFO]   train: 119569 segs (19569 ictal), test: 694 segs (347 ictal)
+2026-09-08 17:46:06,611 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 17:46:24,152 [INFO]     RF  acc=0.670 sens=0.421 spec=0.919 auc=0.720 thr=0.15
+2026-09-08 17:57:05,370 [INFO]     SVM acc=0.630 sens=0.487 spec=0.772 auc=0.529 thr=0.25
+2026-09-08 17:57:08,568 [INFO]     XGB acc=0.683 sens=0.383 spec=0.983 auc=0.508 thr=0.15
+2026-09-08 17:57:08,791 [INFO] 
+=== Fold 3/21: holding out chb03 ===
+2026-09-08 18:05:21,391 [INFO]   train: 119105 segs (19105 ictal), test: 1622 segs (811 ictal)
+2026-09-08 18:05:21,909 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 18:05:46,477 [INFO]     RF  acc=0.490 sens=0.004 spec=0.977 auc=0.568 thr=0.20
+2026-09-08 18:18:34,484 [INFO]     SVM acc=0.418 sens=0.132 spec=0.704 auc=0.256 thr=0.15
+2026-09-08 18:18:40,042 [INFO]     XGB acc=0.509 sens=0.043 spec=0.974 auc=0.548 thr=0.15
+2026-09-08 18:18:40,184 [INFO] 
+=== Fold 4/21: holding out chb04 ===
+2026-09-08 18:27:38,981 [INFO]   train: 119156 segs (19156 ictal), test: 1520 segs (760 ictal)
+2026-09-08 18:27:39,627 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 18:28:05,801 [INFO]     RF  acc=0.498 sens=0.026 spec=0.970 auc=0.609 thr=0.20
+2026-09-08 18:40:32,770 [INFO]     SVM acc=0.478 sens=0.874 spec=0.083 auc=0.395 thr=0.15
+2026-09-08 18:40:37,464 [INFO]     XGB acc=0.527 sens=0.153 spec=0.901 auc=0.574 thr=0.15
+2026-09-08 18:40:38,005 [INFO] 
+=== Fold 5/21: holding out chb05 ===
+2026-09-08 18:49:41,318 [INFO]   train: 118795 segs (18795 ictal), test: 2242 segs (1121 ictal)
+2026-09-08 18:49:41,915 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 18:50:05,777 [INFO]     RF  acc=0.553 sens=0.428 spec=0.677 auc=0.673 thr=0.15
+2026-09-08 19:06:38,934 [INFO]     SVM acc=0.492 sens=0.060 spec=0.924 auc=0.692 thr=0.25
+2026-09-08 19:06:44,569 [INFO]     XGB acc=0.535 sens=0.213 spec=0.856 auc=0.452 thr=0.15
+2026-09-08 19:06:44,720 [INFO] 
+=== Fold 6/21: holding out chb06 ===
+2026-09-08 19:16:10,508 [INFO]   train: 119600 segs (19600 ictal), test: 632 segs (316 ictal)
+2026-09-08 19:16:11,192 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 19:16:36,890 [INFO]     RF  acc=0.413 sens=0.282 spec=0.544 auc=0.402 thr=0.20
+2026-09-08 19:31:32,977 [INFO]     SVM acc=0.479 sens=0.297 spec=0.661 auc=0.466 thr=0.25
+2026-09-08 19:31:37,866 [INFO]     XGB acc=0.411 sens=0.291 spec=0.532 auc=0.407 thr=0.15
+2026-09-08 19:31:38,073 [INFO] 
+=== Fold 7/21: holding out chb07 ===
+2026-09-08 19:41:01,469 [INFO]   train: 119263 segs (19263 ictal), test: 1306 segs (653 ictal)
+2026-09-08 19:41:02,099 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 19:41:27,563 [INFO]     RF  acc=0.500 sens=0.000 spec=1.000 auc=0.547 thr=0.20
+2026-09-08 19:53:56,141 [INFO]     SVM acc=0.484 sens=0.000 spec=0.968 auc=0.544 thr=0.20
+2026-09-08 19:54:00,704 [INFO]     XGB acc=0.488 sens=0.000 spec=0.975 auc=0.295 thr=0.15
+2026-09-08 19:54:00,914 [INFO] 
+=== Fold 8/21: holding out chb08 ===
+2026-09-08 20:03:20,482 [INFO]   train: 118073 segs (18073 ictal), test: 3686 segs (1843 ictal)
+2026-09-08 20:03:21,149 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 20:03:45,878 [INFO]     RF  acc=0.571 sens=0.202 spec=0.941 auc=0.630 thr=0.20
+2026-09-08 20:18:07,733 [INFO]     SVM acc=0.512 sens=0.298 spec=0.725 auc=0.600 thr=0.15
+2026-09-08 20:18:12,964 [INFO]     XGB acc=0.559 sens=0.238 spec=0.880 auc=0.584 thr=0.15
+2026-09-08 20:18:13,186 [INFO] 
+=== Fold 9/21: holding out chb09 ===
+2026-09-08 20:27:34,234 [INFO]   train: 119360 segs (19360 ictal), test: 1112 segs (556 ictal)
+2026-09-08 20:27:34,871 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 20:27:59,353 [INFO]     RF  acc=0.513 sens=0.286 spec=0.739 auc=0.587 thr=0.20
+2026-09-08 20:42:14,369 [INFO]     SVM acc=0.701 sens=0.658 spec=0.743 auc=0.785 thr=0.20
+2026-09-08 20:42:19,458 [INFO]     XGB acc=0.575 sens=0.475 spec=0.674 auc=0.544 thr=0.15
+2026-09-08 20:42:19,682 [INFO] 
+=== Fold 10/21: holding out chb10 ===
+2026-09-08 20:51:28,161 [INFO]   train: 119015 segs (19015 ictal), test: 1802 segs (901 ictal)
+2026-09-08 20:51:28,804 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 20:51:53,375 [INFO]     RF  acc=0.623 sens=0.330 spec=0.917 auc=0.762 thr=0.20
+2026-09-08 21:06:15,227 [INFO]     SVM acc=0.511 sens=0.100 spec=0.922 auc=0.767 thr=0.20
+2026-09-08 21:06:20,333 [INFO]     XGB acc=0.657 sens=0.414 spec=0.900 auc=0.792 thr=0.15
+2026-09-08 21:06:20,524 [INFO] 
+=== Fold 11/21: holding out chb11 ===
+2026-09-08 21:15:33,703 [INFO]   train: 118301 segs (18301 ictal), test: 3230 segs (1615 ictal)
+2026-09-08 21:15:34,290 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 21:15:58,801 [INFO]     RF  acc=0.488 sens=0.000 spec=0.975 auc=0.154 thr=0.20
+2026-09-08 21:30:15,805 [INFO]     SVM acc=0.459 sens=0.006 spec=0.912 auc=0.295 thr=0.20
+2026-09-08 21:30:20,274 [INFO]     XGB acc=0.463 sens=0.001 spec=0.924 auc=0.102 thr=0.15
+2026-09-08 21:30:20,403 [INFO] 
+=== Fold 12/21: holding out chb12 ===
+2026-09-08 21:39:00,502 [INFO]   train: 117911 segs (17911 ictal), test: 4010 segs (2005 ictal)
+2026-09-08 21:39:01,026 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 21:39:26,236 [INFO]     RF  acc=0.476 sens=0.137 spec=0.815 auc=0.501 thr=0.15
+2026-09-08 21:50:23,285 [INFO]     SVM acc=0.528 sens=0.295 spec=0.762 auc=0.548 thr=0.20
+2026-09-08 21:50:26,707 [INFO]     XGB acc=0.520 sens=0.170 spec=0.870 auc=0.533 thr=0.15
+2026-09-08 21:50:26,779 [INFO] 
+=== Fold 13/21: holding out chb13 ===
+2026-09-08 21:56:29,972 [INFO]   train: 119026 segs (19026 ictal), test: 1780 segs (890 ictal)
+2026-09-08 21:56:30,434 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 21:56:48,758 [INFO]     RF  acc=0.479 sens=0.061 spec=0.898 auc=0.425 thr=0.20
+2026-09-08 22:07:17,963 [INFO]     SVM acc=0.498 sens=0.247 spec=0.749 auc=0.473 thr=0.20
+2026-09-08 22:07:21,262 [INFO]     XGB acc=0.481 sens=0.122 spec=0.839 auc=0.471 thr=0.20
+2026-09-08 22:07:21,372 [INFO] 
+=== Fold 14/21: holding out chb14 ===
+2026-09-08 22:14:21,910 [INFO]   train: 119570 segs (19570 ictal), test: 692 segs (346 ictal)
+2026-09-08 22:14:22,478 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 22:14:47,529 [INFO]     RF  acc=0.503 sens=0.052 spec=0.954 auc=0.555 thr=0.20
+2026-09-08 22:29:28,346 [INFO]     SVM acc=0.549 sens=0.124 spec=0.974 auc=0.580 thr=0.25
+2026-09-08 22:29:31,784 [INFO]     XGB acc=0.517 sens=0.078 spec=0.957 auc=0.491 thr=0.15
+2026-09-08 22:29:31,888 [INFO] 
+=== Fold 15/21: holding out chb15 ===
+2026-09-08 22:35:26,613 [INFO]   train: 115912 segs (15912 ictal), test: 8008 segs (4004 ictal)
+2026-09-08 22:35:27,147 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 22:35:44,700 [INFO]     RF  acc=0.504 sens=0.013 spec=0.995 auc=0.598 thr=0.20
+2026-09-08 22:47:43,066 [INFO]     SVM acc=0.497 sens=0.307 spec=0.687 auc=0.481 thr=0.10
+2026-09-08 22:47:48,032 [INFO]     XGB acc=0.523 sens=0.157 spec=0.890 auc=0.528 thr=0.10
+2026-09-08 22:47:48,413 [INFO] 
+=== Fold 16/21: holding out chb16 ===
+2026-09-08 22:57:02,355 [INFO]   train: 119770 segs (19770 ictal), test: 292 segs (146 ictal)
+2026-09-08 22:57:02,880 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 22:57:27,865 [INFO]     RF  acc=0.500 sens=0.000 spec=1.000 auc=0.355 thr=0.20
+2026-09-08 23:11:27,676 [INFO]     SVM acc=0.476 sens=0.000 spec=0.952 auc=0.306 thr=0.20
+2026-09-08 23:11:32,282 [INFO]     XGB acc=0.483 sens=0.000 spec=0.966 auc=0.317 thr=0.15
+2026-09-08 23:11:32,372 [INFO] 
+=== Fold 17/21: holding out chb17 ===
+2026-09-08 23:20:18,892 [INFO]   train: 119327 segs (19327 ictal), test: 1178 segs (589 ictal)
+2026-09-08 23:20:19,526 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 23:20:45,101 [INFO]     RF  acc=0.606 sens=0.228 spec=0.985 auc=0.576 thr=0.20
+2026-09-08 23:34:05,048 [INFO]     SVM acc=0.605 sens=0.253 spec=0.958 auc=0.762 thr=0.20
+2026-09-08 23:34:09,529 [INFO]     XGB acc=0.626 sens=0.278 spec=0.973 auc=0.570 thr=0.15
+2026-09-08 23:34:09,626 [INFO] 
+=== Fold 18/21: holding out chb18 ===
+2026-09-08 23:43:08,991 [INFO]   train: 119276 segs (19276 ictal), test: 1280 segs (640 ictal)
+2026-09-08 23:43:09,516 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-08 23:43:35,356 [INFO]     RF  acc=0.544 sens=0.120 spec=0.967 auc=0.695 thr=0.20
+2026-09-08 23:56:49,627 [INFO]     SVM acc=0.584 sens=0.420 spec=0.748 auc=0.596 thr=0.20
+2026-09-08 23:56:54,123 [INFO]     XGB acc=0.546 sens=0.144 spec=0.948 auc=0.551 thr=0.20
+2026-09-08 23:56:54,255 [INFO] 
+=== Fold 19/21: holding out chb19 ===
+2026-09-09 00:05:47,580 [INFO]   train: 119441 segs (19441 ictal), test: 950 segs (475 ictal)
+2026-09-09 00:05:48,113 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-09 00:06:12,824 [INFO]     RF  acc=0.511 sens=0.040 spec=0.981 auc=0.553 thr=0.20
+2026-09-09 00:19:27,953 [INFO]     SVM acc=0.555 sens=0.198 spec=0.912 auc=0.491 thr=0.15
+2026-09-09 00:19:33,388 [INFO]     XGB acc=0.519 sens=0.057 spec=0.981 auc=0.478 thr=0.20
+2026-09-09 00:19:33,659 [INFO] 
+=== Fold 20/21: holding out chb20 ===
+2026-09-09 00:28:58,650 [INFO]   train: 119320 segs (19320 ictal), test: 1192 segs (596 ictal)
+2026-09-09 00:28:59,321 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-09 00:29:24,444 [INFO]     RF  acc=0.532 sens=0.081 spec=0.983 auc=0.685 thr=0.20
+2026-09-09 00:44:26,927 [INFO]     SVM acc=0.635 sens=0.332 spec=0.938 auc=0.747 thr=0.25
+2026-09-09 00:44:32,125 [INFO]     XGB acc=0.576 sens=0.178 spec=0.973 auc=0.687 thr=0.15
+2026-09-09 00:44:32,397 [INFO] 
+=== Fold 21/21: holding out chb22 ===
+2026-09-09 00:53:45,192 [INFO]   train: 119505 segs (19505 ictal), test: 822 segs (411 ictal)
+2026-09-09 00:53:45,719 [INFO]   features: 92/207 kept after variance filter, scaled
+2026-09-09 00:54:10,679 [INFO]     RF  acc=0.487 sens=0.002 spec=0.971 auc=0.749 thr=0.20
+2026-09-09 01:07:13,738 [INFO]     SVM acc=0.506 sens=0.187 spec=0.825 auc=0.606 thr=0.20
+2026-09-09 01:07:18,343 [INFO]     XGB acc=0.471 sens=0.005 spec=0.937 auc=0.506 thr=0.15
+2026-09-09 01:07:18,741 [INFO] Per-fold results written to results\tables\loocv_per_fold.csv
+2026-09-09 01:07:18,795 [INFO] Summary written to results\tables\loocv_summary.csv
+2026-09-09 01:07:18,810 [INFO] Stage 3: statistical tests (Wilcoxon + bootstrap CI)...
+2026-09-09 01:07:18,951 [INFO] Stage 5: generating figures...
+2026-09-09 01:07:20,439 [INFO] Saved results\figures\loocv_boxplots.png
+2026-09-09 01:07:20,793 [INFO] Saved results\figures\per_patient_accuracy.png
+2026-09-09 01:07:21,230 [INFO] Saved results\figures\aggregated_confusion.png
+2026-09-09 01:07:21,741 [INFO] Saved results\figures\catastrophic_collapse.png
+2026-09-09 01:07:21,749 [INFO] Saved results\tables\thesis_headline_table.csv
+2026-09-09 01:07:21,751 [INFO] 
+Done. Results in C:\Users\ASUS\Desktop\THESIS WORK\seizure_pipeline_v2\seizure_pipeline_v2\results

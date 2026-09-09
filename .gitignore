@@ -1,0 +1,7 @@
+*.npz
+*.edf
+*.EDF
+*.fif
+*.mat
+__pycache__/
+*.pyc
