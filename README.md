@@ -32,9 +32,13 @@ The pipeline uses:
 
 ---
 
+
+
 ## 2. Dataset
 
 The experiments use the **CHB-MIT Scalp EEG Database**.
+
+**CHB-MIT Scalp EEG Database:** PhysioNet. The dataset is publicly available at https://physionet.org/content/chbmit/1.0.0/.
 
 The final LOOCV cohort contains:
 
@@ -47,8 +51,6 @@ for a total of **21 patients**.
 `chb21` is excluded because it is a re-recording of `chb01`.
 
 The repository does **not** contain the CHB-MIT EEG recordings. Users must obtain the dataset separately and provide its local path through `config.py` or the `CHBMIT_PATH` environment variable.
-
----
 
 ## 3. System Requirements
 
