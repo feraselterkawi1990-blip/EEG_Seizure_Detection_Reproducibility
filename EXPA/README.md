@@ -1,204 +1,518 @@
-# EEG Seizure Detection — LOOCV Pipeline (v2)
+# EXP-A — 4-Second Windows + StandardScaler
 
-Pipeline لتنفيذ Leave-One-Patient-Out Cross-Validation على قاعدة CHB-MIT
-لرسالة "When Cross-Patient Validation Reveals the True Limits of Classical
-Machine Learning for EEG Seizure Detection".
+## Overview
 
-**هذه نسخة v2 (مايو 2026)**. للتغييرات الكاملة عن النسخة الأولى، انظر
-`CHANGELOG.md`.
+EXP-A is a controlled experiment in the EEG seizure-detection reproducibility pipeline.
 
----
+Its purpose is to isolate the effect of **window length** while keeping the classical Part I preprocessing and normalization strategy unchanged.
 
-## ما الجديد في v2
+The experiment uses:
 
-- **XGBoost** أُضيف كنموذج ثالث رئيسي (issue #20).
-- **Threshold tuning موحَّد** لكل النماذج عبر Youden's J على نفس validation
-  set (issue #1، #2).
-- **اختبارات إحصائية حقيقية**: Wilcoxon signed-rank مع Holm correction +
-  bootstrap 95% CIs (issues #21، #22).
-- **تحليل آلي للانهيار**: MMD + Wasserstein + Mahalanobis لكل مريض،
-  مع Spearman correlations مع الـ AUC (issue #23).
-- **كل المعلمات** مُنقولة إلى `config.py` (issue #4) — كما تَعِد §3.6.3
-  من الأطروحة.
-- **توثيق المرضى** مُصحَّح (issue #3): chb21 = إعادة تسجيل لـ chb01
-  (وليس chb24)، 21 مريضاً مستخدماً.
-- **معلمة ICA ميتة** (`ICA_VARIANCE_THRESHOLD`) أُزيلت، استُبدلت بـ
-  `ICA_FRONTAL_ASYMMETRY_THRESHOLD` و `ICA_FRONTAL_PREFIXES` تطابقان
-  ما يفعله `preprocessing.py` فعلاً (issue #5).
+* CHB-MIT Scalp EEG
+* 21-patient leave-one-patient-out cross-validation (LOOCV)
+* 4-second EEG windows
+* 50% window overlap
+* 23 native EEG channels
+* 0.5–30 Hz band-pass filtering
+* ICA-based artifact cleaning
+* 207 raw features (9 features × 23 channels)
+* variance-based feature filtering
+* StandardScaler fitted on the training data only
+* RF, SVM, and XGB classifiers
+* Youden's J threshold selection using the validation subset
+
+The experiment is designed as the **4-second + StandardScaler** cell of the thesis 2×2 factorial design.
 
 ---
 
-## 1. متطلبات النظام
+## Scientific Question
 
-- Python 3.10+
-- 16 GB RAM كحد أدنى (32 GB موصى به)
-- 50 GB مساحة على القرص (للبيانات + الكاش)
-- GPU (اختياري، لتسريع LSTM/CNN فقط)
+The main question is:
+
+> Does increasing the EEG window length from 1 second to 4 seconds improve seizure-detection performance when the original Part I feature extraction and StandardScaler pipeline are preserved?
+
+This allows the effect of window length to be separated from the effect of per-segment normalization.
+
+The complete factorial design is:
+
+| Condition   |    Window | Normalization       | RF Mean AUC |
+| ----------- | --------: | ------------------- | ----------: |
+| Part I      |     1 sec | StandardScaler      |      0.5745 |
+| Stage 3-iso |     1 sec | Per-segment z-score |      0.5891 |
+| **EXP-A**   | **4 sec** | **StandardScaler**  |  **0.5821** |
+| Stage 3     |     4 sec | Per-segment z-score |      0.8660 |
+
+All values above are based on 21 LOOCV folds.
 
 ---
 
-## 2. التثبيت
+## Experimental Design
 
-```bash
-cd seizure_pipeline_v2
-python -m venv venv
-source venv/bin/activate           # على ويندوز: venv\Scripts\activate
+EXP-A changes the **window duration** relative to Part I while retaining the Part-I-style classical processing pipeline.
+
+### Processing pipeline
+
+```text
+CHB-MIT EDF recordings
+        │
+        ▼
+Channel standardization
+        │
+        ▼
+0.5–30 Hz band-pass filter
+        │
+        ▼
+ICA artifact cleaning
+        │
+        ▼
+4-second segmentation
+50% overlap
+        │
+        ▼
+Seizure labels based on
+window-center time
+        │
+        ▼
+9 features × 23 channels
+= 207 raw features
+        │
+        ▼
+VarianceThreshold
+        │
+        ▼
+StandardScaler
+fit on training data only
+        │
+        ├──► Random Forest
+        ├──► SVM
+        └──► XGBoost
+```
+
+### What EXP-A does NOT use
+
+EXP-A does **not** apply per-segment z-score normalization.
+
+The raw 4-second segments are passed to feature extraction, and StandardScaler is subsequently fitted using the training data only.
+
+This is intentional: the experiment is designed to test the effect of changing the window length without simultaneously changing the normalization strategy.
+
+---
+
+## Dataset
+
+The experiment uses the following 21-patient cohort:
+
+```text
+chb01
+chb02
+chb03
+chb04
+chb05
+chb06
+chb07
+chb08
+chb09
+chb10
+chb11
+chb12
+chb13
+chb14
+chb15
+chb16
+chb17
+chb18
+chb19
+chb20
+chb22
+```
+
+Patient data are not included in this repository.
+
+The CHB-MIT dataset should be obtained independently from the official dataset source.
+
+After downloading the dataset, update `config.py`:
+
+```python
+CHB_MIT_PATH = Path(r"C:\path\to\chbmit")
+```
+
+The repository contains the code required to construct the EXP-A cache from the downloaded EDF recordings.
+
+---
+
+## Repository Structure
+
+```text
+EXP-A/
+│
+├── README.md
+├── config.py
+├── requirements.txt
+│
+├── scripts/
+│   └── run_loocv_4sec.py
+│
+├── src/
+│   ├── __init__.py
+│   ├── cache.py
+│   ├── cache_4sec.py
+│   ├── data_loader.py
+│   ├── features.py
+│   ├── loocv.py
+│   ├── loocv_4sec.py
+│   ├── metrics.py
+│   ├── models.py
+│   ├── preprocessing.py
+│   ├── run_loocv_4sec.py
+│   └── visualize.py
+│
+└── results/
+    ├── cache_4sec/
+    ├── tables/
+    ├── figures/
+    └── logs/
+```
+
+Generated caches and experimental outputs are not required to be committed to the repository.
+
+---
+
+## Requirements
+
+Recommended environment:
+
+* Python 3.10+
+* NumPy
+* SciPy
+* pandas
+* scikit-learn
+* MNE
+* XGBoost
+* Matplotlib
+
+Install the required packages with:
+
+```powershell
 pip install -r requirements.txt
 ```
 
-XGBoost مُدرج بالفعل في `requirements.txt`. TensorFlow اختياري —
-أزِل التعليق إن أردتَ تشغيل LSTM/CNN.
+A virtual environment is recommended.
 
 ---
 
-## 3. الإعداد
+## Configuration
 
-### الطريقة 1 (سريع): تعديل `config.py`
+The main configuration file is:
+
+```text
+config.py
+```
+
+Important settings include:
+
 ```python
-CHB_MIT_PATH = Path(r"/your/path/to/chbmit")
+SAMPLING_RATE = 256
+
+LOWCUT = 0.5
+HIGHCUT = 30.0
+
+OVERLAP_RATIO = 0.5
+
+N_CHANNELS = 23
+N_FEATURES_PER_CHANNEL = 9
+N_TOTAL_FEATURES = 207
+
+TRAIN_BALANCE_STRATEGY = "class_weight"
+TEST_BALANCE = True
+
+RANDOM_SEED = 42
 ```
 
-### الطريقة 2 (موصى به للنشر): متغيّر بيئة
-```bash
-export CHBMIT_PATH=/your/path/to/chbmit       # Linux/Mac
-$env:CHBMIT_PATH = "C:\path\to\chbmit"        # PowerShell
-```
+### Important: 4-second windows
 
----
+Although `config.py` retains:
 
-## 4. التشغيل
-
-### اختبار سريع (مريض واحد، ~10 دقائق)
-```bash
-python scripts/run_loocv.py --smoke
-```
-
-### تشغيل كامل (RF + SVM + XGB، ~5-7 ساعات على CPU)
-```bash
-python scripts/run_loocv.py
-```
-
-### مع تحليل توزيع البيانات (مدّة إضافية ~30 دقيقة)
-```bash
-python scripts/run_loocv.py --shift
-```
-
-### استخدام كاش موجود مسبقاً (يتخطى مرحلة بناء الكاش)
-```bash
-python scripts/run_loocv.py --skip-cache
-```
-
-### إعادة الاختبارات الإحصائية فقط (من نتائج موجودة)
-```bash
-python scripts/run_statistical_tests.py
-```
-
-### إضافة LSTM/CNN
-في `config.py`:
 ```python
-MODELS_TO_RUN = ["RF", "SVM", "XGB", "CNN", "LSTM"]
+SEGMENT_DURATION_SEC = 1.0
 ```
-ثم:
-```bash
-pip install tensorflow
-python scripts/run_loocv.py --skip-cache
+
+this value should **not** be changed for EXP-A.
+
+The EXP-A cache builder explicitly overrides the segmentation duration:
+
+```python
+WINDOW_DURATION_SEC = 4.0
+```
+
+Therefore `cache_4sec.py` is the source of truth for the EXP-A window length.
+
+At 256 Hz:
+
+```text
+4 seconds × 256 Hz = 1024 samples/window
 ```
 
 ---
 
-## 5. الزمن المتوقع (Ryzen 9 7940HS، CPU فقط)
+## Running EXP-A
 
-| المرحلة | الزمن |
-|---------|-------|
-| بناء الكاش (21 مريضاً، مرة واحدة) | 4-5 ساعات |
-| LOOCV — RF + SVM + XGB | 4-6 ساعات |
-| LOOCV — مع CNN فقط (إضافة) | +50 ساعة |
-| LOOCV — مع LSTM فقط (إضافة) | +100-200 ساعة |
-| الاختبارات الإحصائية | < 1 دقيقة |
-| تحليل توزيع البيانات | 20-40 دقيقة |
+From the `EXP-A` directory:
 
-نصيحة: ابنِ الكاش مرة واحدة، ثم استخدم `--skip-cache` لكل التجارب.
+### 1. Smoke test
+
+Run only two patients:
+
+```powershell
+python scripts/run_loocv_4sec.py --dry-run
+```
+
+This is useful for verifying:
+
+* dataset paths
+* EDF loading
+* channel standardization
+* preprocessing
+* ICA
+* 4-second segmentation
+* feature extraction
+* cache generation
+* model training
+
+### 2. Build the complete 4-second cache
+
+```powershell
+python scripts/run_loocv_4sec.py --cache-only
+```
+
+This builds:
+
+```text
+results/cache_4sec/
+```
+
+with one compressed cache file per patient:
+
+```text
+chb01.npz
+chb02.npz
+...
+chb22.npz
+```
+
+### 3. Run the complete experiment
+
+The default command runs:
+
+```text
+RF + SVM + XGB
+```
+
+using all 21 patients:
+
+```powershell
+python scripts/run_loocv_4sec.py
+```
+
+If the cache has already been created:
+
+```powershell
+python scripts/run_loocv_4sec.py --skip-cache
+```
+
+### 4. Rebuild the cache
+
+To force regeneration:
+
+```powershell
+python scripts/run_loocv_4sec.py --force
+```
+
+### 5. Run selected models
+
+For example:
+
+```powershell
+python scripts/run_loocv_4sec.py --models RF XGB
+```
+
+This skips SVM and is useful for faster exploratory runs.
+
+The complete reported EXP-A experiment, however, includes **RF + SVM + XGB**.
 
 ---
 
-## 6. المخرجات
+## LOOCV Procedure
 
+For each of the 21 patients:
+
+1. One patient is held out as the test patient.
+2. The remaining 20 patients form the training pool.
+3. Training data are pooled across patients.
+4. The training pool is optionally subsampled according to the configured class-balancing strategy.
+5. A validation subset is selected from the training pool.
+6. Missing/infinite feature values are replaced with zero.
+7. Variance filtering is fitted using training data only.
+8. StandardScaler is fitted using training data only.
+9. The selected classifier is trained.
+10. The validation probabilities are used to select a threshold using Youden's J statistic.
+11. The held-out patient's test probabilities are evaluated using that threshold.
+12. Accuracy, sensitivity, specificity, AUC, MCC, and related statistics are recorded.
+
+This procedure is repeated for all 21 held-out patients.
+
+---
+
+## Results
+
+The final EXP-A per-fold results are stored in:
+
+```text
+results/tables/loocv_per_fold_4sec_stdscaler.csv
 ```
+
+### Aggregate AUC
+
+| Model |   Mean AUC |     SD | Minimum | Maximum | Folds |
+| ----- | ---------: | -----: | ------: | ------: | ----: |
+| RF    | **0.5821** | 0.1446 |  0.2771 |  0.8166 |    21 |
+| SVM   | **0.5481** | 0.1467 |  0.2616 |  0.8633 |    21 |
+| XGB   | **0.5194** | 0.1623 |  0.0814 |  0.8509 |    21 |
+
+The RF result is the principal result for comparison with the thesis factorial design.
+
+---
+
+## 2×2 Factorial Comparison
+
+The four conditions are:
+
+| Cell        | Window | Normalization       | RF Mean AUC |
+| ----------- | -----: | ------------------- | ----------: |
+| Part I      |  1 sec | StandardScaler      |  **0.5745** |
+| Stage 3-iso |  1 sec | Per-segment z-score |  **0.5891** |
+| EXP-A       |  4 sec | StandardScaler      |  **0.5821** |
+| Stage 3     |  4 sec | Per-segment z-score |  **0.8660** |
+
+The comparison shows that increasing the window length from 1 second to 4 seconds under StandardScaler produces only a modest change in RF mean AUC:
+
+```text
+0.5745 → 0.5821
+```
+
+The much larger change occurs when per-segment normalization is used in the 4-second condition:
+
+```text
+0.5821 → 0.8660
+```
+
+This is the central reason EXP-A is included: it provides the controlled **4-second + StandardScaler** condition needed to interpret the Stage 3 result.
+
+---
+
+## Output Files
+
+After a complete run, the main outputs are:
+
+```text
 results/
-├── cache/
-│   └── chb01.npz, chb02.npz, ...           # الكاش (لا يتغيّر)
+│
+├── cache_4sec/
+│   ├── chb01.npz
+│   ├── chb02.npz
+│   └── ...
+│
 ├── tables/
-│   ├── loocv_per_fold.csv                  # كل صف = (model, patient)
-│   ├── loocv_summary.csv                   # mean ± std لكل model
-│   ├── thesis_headline_table.csv           # الجدول الرئيسي
-│   ├── bootstrap_ci_auc.csv                # NEW: CIs لكل model
-│   ├── bootstrap_ci_sensitivity.csv        # NEW
-│   ├── bootstrap_ci_specificity.csv        # NEW
-│   ├── wilcoxon_auc_holm.csv               # NEW: مقارنات بين models
-│   └── distribution_shift.csv              # NEW (مع --shift)
-├── figures/
-│   ├── loocv_boxplots.png                  # توزيع الأداء
-│   ├── per_patient_accuracy.png            # دقة كل مريض
-│   ├── aggregated_confusion.png            # confusion matrices
-│   ├── catastrophic_collapse.png           # NEW: sens vs AUC
-│   └── distribution_shift.png              # NEW (مع --shift)
+│   └── loocv_per_fold_4sec_stdscaler.csv
+│
 └── logs/
-    └── run_loocv.log
+    └── loocv_4sec.log
 ```
+
+The cache files can be regenerated from the original CHB-MIT EDF data and are therefore treated as generated artifacts rather than source code.
 
 ---
 
-## 7. هيكل الكود (v2)
+## Reproducibility Notes
 
+### Random seed
+
+The pipeline uses:
+
+```python
+RANDOM_SEED = 42
 ```
-seizure_pipeline_v2/
-├── config.py                       # كل الإعدادات (single source of truth)
-├── requirements.txt
-├── README.md                       # هذا الملف
-├── CHANGELOG.md                    # شرح كل تغيير عن v1
-├── src/
-│   ├── data_loader.py              # قراءة EDF + ملفات الـ summary
-│   ├── preprocessing.py            # bandpass + ICA + segmentation
-│   ├── features.py                 # 207 ميزة (5 time + 4 spectral × 23 ch)
-│   ├── cache.py                    # حفظ الميزات لكل مريض
-│   ├── models.py                   # RF, SVM, XGB, LSTM, CNN
-│   ├── metrics.py                  # accuracy, sens, spec, AUC + Wilson CI
-│   ├── loocv.py                    # حلقة LOOCV الرئيسية
-│   ├── statistical_tests.py        # NEW: Wilcoxon + bootstrap CI
-│   ├── distribution_shift.py       # NEW: MMD + Wasserstein + Mahalanobis
-│   └── visualize.py                # رسوم وجداول
-└── scripts/
-    ├── run_loocv.py                # المسار الرئيسي
-    ├── run_statistical_tests.py    # NEW: stats فقط
-    └── run_distribution_shift.py   # NEW: shift فقط
+
+The LOOCV fold uses:
+
+```python
+RANDOM_SEED + fold_idx
 ```
+
+to make fold-specific sampling deterministic.
+
+### Test balancing
+
+The current EXP-A configuration uses:
+
+```python
+TEST_BALANCE = True
+```
+
+Therefore the held-out test set is balanced by randomly sampling equal numbers of ictal and non-ictal segments when both classes are available.
+
+### Feature count
+
+The initial feature representation contains:
+
+```text
+23 channels × 9 features = 207 features
+```
+
+A variance filter is fitted on the training data and reduces the feature dimensionality before StandardScaler.
+
+In the reported EXP-A run, the resulting feature count was:
+
+```text
+92 features
+```
+
+across the folds.
 
 ---
 
-## 8. الكاش متوافق مع v1
+## Scientific Interpretation
 
-ملفات `.npz` التي بنيتَها مع v1 (cache.py لم يتغيّر) تعمل مباشرةً مع v2.
-**لا تحتاج إلى إعادة بناء الكاش**. شغّل:
+EXP-A is not intended to outperform Stage 3.
 
-```bash
-python scripts/run_loocv.py --skip-cache
+Its purpose is methodological.
+
+By keeping the classical Part-I-style feature extraction and StandardScaler treatment while changing the window length from 1 second to 4 seconds, EXP-A provides a controlled comparison against the 4-second per-segment-normalized Stage 3 condition.
+
+The observed RF mean AUCs are:
+
+```text
+Part I       0.5745
+Stage 3-iso  0.5891
+EXP-A        0.5821
+Stage 3      0.8660
 ```
+
+Thus, within this experimental design, the large performance difference associated with Stage 3 cannot be attributed to the 4-second window alone.
 
 ---
 
-## 9. ما الذي يجب تحديثه في النص بعد تشغيل v2
+## Citation
 
-بعد تشغيل LOOCV الجديد والحصول على نتائج XGBoost والاختبارات الإحصائية،
-ستحتاج تحديث الفصول التالية في الأطروحة:
+If this repository is used in academic work, please cite the associated thesis:
 
-- **Table 4.1**: إضافة عمود XGBoost.
-- **§4.1**: إضافة فقرة عن XGBoost ومقارنته بـ RF/SVM (Wilcoxon).
-- **§4.1**: إضافة bootstrap CIs بدلاً من mean ± std فقط.
-- **§5.1**: استبدال "paired t-test" بـ "Wilcoxon signed-rank with Holm
-  correction"، ذكر القيم.
-- **§5.2.3**: استبدال الفرضيات النوعية بنتائج Spearman الكمية من
-  `distribution_shift.csv`.
-- **Abstract، §4.2.2، §6.1**: توحيد قائمة المرضى المنهارين.
-- **§3.1.2**: تصحيح وصف chb21/chb23/chb24.
+> Firas Altarkawi, “The Window-Normalization Effect in EEG Seizure Detection: A Methodological Audit,” MSc Neuroscience, Bahçeşehir University.
 
-التفاصيل في `CHANGELOG.md` قسم "What is NOT addressed in v2".
+The CHB-MIT dataset should be cited according to the dataset's official citation requirements.
+
+---
+
+## License
+
+This repository contains research code only.
+
+The CHB-MIT EEG recordings are not redistributed with this repository. Users must obtain the dataset independently and comply with its applicable terms of use.
