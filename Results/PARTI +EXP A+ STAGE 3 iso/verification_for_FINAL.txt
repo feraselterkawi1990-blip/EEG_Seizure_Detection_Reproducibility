@@ -1,0 +1,106 @@
+
+
+==============================================================================
+1. §5.0a — Spearman ρ + AMD (Part I, RF/SVM/XGB)
+==============================================================================
+
+  Spearman ρ (AUC vs MCC, n=21): +0.7714 (p=0.000042)
+  Thesis claim: +0.771
+  ✓ MATCH
+
+  AMD definition used here: |AUC_RF - 0.5| - |MCC_RF|
+  Top 5 by AMD:
+    chb11: AMD = +0.2343
+    chb16: AMD = +0.1455
+    chb22: AMD = +0.1419
+    chb04: AMD = +0.0971
+    chb05: AMD = +0.0647
+
+  chb22 AMD = +0.1419
+  Thesis claim: +0.142
+
+==============================================================================
+2. Friedman χ² across S1/S1.5/S2/S3
+==============================================================================
+
+  S1: loaded per_fold_eegnet.csv (n=21 patients)
+    columns: ['test_patient', 'model', 'accuracy', 'sensitivity', 'specificity', 'auc', 'mcc', 'f1', 'tp', 'tn', 'fp', 'fn', 'threshold', 'n_test', 'n_pos_test', 'n_neg_test', 'fit_time_sec', 'fold_total_sec', 'n_params']
+  S1.5: loaded per_fold_eegnet_25hz.csv (n=21 patients)
+    columns: ['test_patient', 'model', 'accuracy', 'sensitivity', 'specificity', 'auc', 'mcc', 'f1', 'tp', 'tn', 'fp', 'fn', 'threshold', 'n_test', 'n_pos_test', 'n_neg_test', 'fit_time_sec', 'fold_total_sec', 'n_params']
+  S2: loaded per_fold_eegnet_perrec.csv (n=21 patients)
+    columns: ['test_patient', 'model', 'accuracy', 'sensitivity', 'specificity', 'auc', 'mcc', 'f1', 'tp', 'tn', 'fp', 'fn', 'threshold', 'n_test', 'n_pos_test', 'n_neg_test', 'fit_time_sec', 'fold_total_sec', 'n_params']
+  S3: loaded per_fold_classical_perseg.csv (n=21 patients)
+    columns: ['test_patient', 'model', 'accuracy', 'sensitivity', 'specificity', 'auc', 'mcc', 'f1', 'tp', 'tn', 'fp', 'fn', 'threshold', 'n_test', 'n_pos_test', 'n_neg_test', 'fit_time_sec', 'fold_total_sec']
+
+  Stage aggregate AUCs (mean ± std):
+    S1   = 0.8378 ± 0.1309  (claim: 0.838)
+    S1.5 = 0.8400 ± 0.1293  (claim: 0.840)
+    S2   = 0.8685 ± 0.1832  (claim: 0.869)
+    S3   = 0.8660 ± 0.1440  (claim: 0.866)
+
+  Friedman χ² test (S1 vs S1.5 vs S2 vs S3, n=21):
+    χ² = 16.9429
+    p  = 0.000726
+    Thesis claim: χ² = 16.94, p = 0.0007
+    χ² match: ✓ (diff = +0.0029)
+    p  match: ✓ (diff = +0.000026)
+
+  Pairwise Wilcoxon (paired, two-sided):
+    S1 vs S1.5: Δ=+0.0022, W=106.0, p=0.7593
+    S1 vs S2: Δ=+0.0307, W=46.0, p=0.0142
+    S1 vs S3: Δ=+0.0282, W=56.0, p=0.0384
+    S1.5 vs S2: Δ=+0.0285, W=48.0, p=0.0175
+    S1.5 vs S3: Δ=+0.0260, W=68.0, p=0.1032
+    S2 vs S3: Δ=-0.0025, W=96.0, p=0.5168
+
+==============================================================================
+3. chb05 confusion matrix — Stage 3 RF
+==============================================================================
+
+  Source: per_fold_classical_perseg.csv
+  Model: rf_perseg
+
+  Metrics:
+    Accuracy    = 0.5718
+    Sensitivity = 0.9791
+    Specificity = 0.5514  (claim: 0.55)
+    AUC         = 0.9534  (claim: 0.953)
+    MCC         = +0.2263
+    F1          = 0.1788
+    Threshold   = 0.2
+
+  Confusion matrix:
+    TP =   281    FN =     6
+    FP =  2575    TN =  3165
+
+  Test set: n=6027 segments
+    Positive: 287
+    Negative: 5740
+
+  Clinical interpretation:
+    Detected 281/287 seizure segments (97.9%)
+    False-alarm rate: 2575/5740 non-ictal segments (44.9%)
+    → Highly sensitive but noisy 'screen-everything' regime
+    → Threshold could be raised to reduce false alarms at cost of sensitivity
+
+  AUC match: ✓
+  Specificity match: ✓
+
+==============================================================================
+4. Stage-by-stage aggregate verification
+==============================================================================
+
+stage         model  n  mean_auc  std_auc  mean_mcc  mean_sens  mean_spec  claim
+   S1        eegnet 21  0.837799 0.134176  0.336292   0.641697   0.841410  0.838
+ S1.5   eegnet_25hz 21  0.839988 0.132531  0.328842   0.648896   0.831163  0.840
+   S2 eegnet_perrec 21  0.868503 0.187688  0.412369   0.709249   0.847332  0.869
+   S3     rf_perseg 21  0.866002 0.147559  0.364746   0.646720   0.843971  0.866
+
+  S1    : computed = 0.8378, claim = 0.838  ✓
+  S1.5  : computed = 0.8400, claim = 0.840  ✓
+  S2    : computed = 0.8685, claim = 0.869  ✓
+  S3    : computed = 0.8660, claim = 0.866  ✓
+
+==============================================================================
+END OF REPORT
+==============================================================================

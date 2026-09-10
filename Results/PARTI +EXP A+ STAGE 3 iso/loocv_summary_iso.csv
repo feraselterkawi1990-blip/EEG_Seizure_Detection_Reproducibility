@@ -1,0 +1,4 @@
+,accuracy,accuracy,accuracy,sensitivity,sensitivity,sensitivity,specificity,specificity,specificity,auc,auc,auc
+,mean,std,count,mean,std,count,mean,std,count,mean,std,count
+model,,,,,,,,,,,,
+RF,0.5551887595236971,0.06610568984173314,21,0.2390921100369606,0.20643647378067218,21,0.8712854090104336,0.1919513248469761,21,0.5890618146064176,0.15186552107707516,21
