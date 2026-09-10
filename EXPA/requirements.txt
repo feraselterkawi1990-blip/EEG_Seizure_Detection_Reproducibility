@@ -1,8 +1,9 @@
 numpy>=1.24
 scipy>=1.11
 pandas>=2.0
-scikit-learn>=1.3
-mne>=1.6
+scikit-learn>=1.4
+mne>=1.7
 matplotlib>=3.7
-tensorflow>=2.15
-h5py>=3.10
+xgboost>=2.0
+# Optional (only needed if you set MODELS_TO_RUN to include LSTM/CNN):
+# tensorflow>=2.15

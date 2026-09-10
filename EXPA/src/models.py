@@ -1,12 +1,17 @@
 """
 models.py
 =========
-Four classifiers used in the thesis:
+Five classifiers used in the v2 pipeline:
 
 - Random Forest (sklearn)
 - Support Vector Machine (sklearn, RBF kernel)
+- XGBoost (gradient-boosted trees) -- NEW in v2
 - LSTM (TensorFlow/Keras)
 - 1D CNN (TensorFlow/Keras)
+
+CHANGELOG (v2):
+  - NEW: build_xgb() for XGBoost LOOCV (issue #20).
+  - Existing models unchanged.
 
 Deep models include improvements over the original thesis:
 - Class-weighted loss (instead of post-hoc undersampling only)
@@ -22,6 +27,13 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.utils.class_weight import compute_class_weight
+
+# XGBoost is optional but recommended. Pipeline degrades gracefully if absent.
+try:
+    from xgboost import XGBClassifier
+    XGB_AVAILABLE = True
+except ImportError:
+    XGB_AVAILABLE = False
 
 # Tensorflow imports are deferred to avoid hard dependency for sklearn-only runs
 try:
@@ -48,6 +60,28 @@ def build_rf() -> RandomForestClassifier:
 # =====================================================================
 def build_svm() -> SVC:
     return SVC(**config.SVM_PARAMS)
+
+
+# =====================================================================
+# XGBoost  (NEW in v2)
+# =====================================================================
+def build_xgb():
+    """
+    Build an XGBoost classifier configured for cross-patient LOOCV.
+
+    Class imbalance handled implicitly: training pool is already pre-balanced
+    to a 1:5 ictal:non-ictal ratio via MAX_TRAIN_NEG subsampling, and
+    scale_pos_weight defaults to 1 in config.
+
+    Returns
+    -------
+    XGBClassifier
+    """
+    if not XGB_AVAILABLE:
+        raise ImportError(
+            "XGBoost is not installed. Install with `pip install xgboost`."
+        )
+    return XGBClassifier(**config.XGB_PARAMS)
 
 
 # =====================================================================
@@ -177,7 +211,11 @@ def train_keras_model(
 
 def normalize_sequences(X: np.ndarray) -> np.ndarray:
     """
-    Per-sample, per-channel z-score normalization.
+    Per-sample, per-channel z-score normalization (a.k.a. instance norm).
+
+    Removes inter-patient amplitude variability — this is the
+    'patient-adaptive normalisation' direction recommended in §6.3.2
+    of the thesis, applied implicitly through this preprocessing step.
 
     X shape: (n_samples, n_timesteps, n_channels)
     """

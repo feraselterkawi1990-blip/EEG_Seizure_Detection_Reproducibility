@@ -1,27 +1,13 @@
 """
 run_loocv.py
 ============
-Main entry point: end-to-end pipeline runner.
+Entry point: build per-patient cache, run LOOCV across models, generate
+figures and statistical tests.
 
-Stages
-------
-  1. Build per-patient feature caches (one-time, slowest stage)
-  2. Run LOOCV across all patients
-  3. Generate summary tables and figures
-
-Usage
------
-    # Full pipeline (default)
-    python scripts/run_loocv.py
-
-    # Re-run only LOOCV using existing caches
-    python scripts/run_loocv.py --skip-cache
-
-    # Force rebuild of caches
-    python scripts/run_loocv.py --force-cache
-
-    # Quick smoke test (cache one patient, dry run)
-    python scripts/run_loocv.py --smoke
+CHANGELOG (v2):
+  - Now invokes statistical tests after LOOCV completes.
+  - Now runs distribution-shift analysis when --shift flag set.
+  - Defaults to RF + SVM + XGB.
 """
 
 import argparse
@@ -29,70 +15,88 @@ import logging
 import sys
 from pathlib import Path
 
-# Ensure src/ is importable when run from project root
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Allow `python scripts/run_loocv.py` from project root
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import pandas as pd
 
 import config
-from src import cache, loocv, visualize
+from src import cache, loocv, visualize, statistical_tests, distribution_shift
 
 
-def setup_logging(level: str = "INFO"):
-    log_format = "%(asctime)s [%(levelname)s] %(name)s | %(message)s"
+def setup_logging():
+    config.LOGS_PATH.mkdir(parents=True, exist_ok=True)
+    log_file = config.LOGS_PATH / "run_loocv.log"
     logging.basicConfig(
-        level=getattr(logging, level.upper()),
-        format=log_format,
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
+            logging.FileHandler(log_file, mode="a", encoding="utf-8"),
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler(config.LOGS_PATH / "run_loocv.log", mode="a"),
         ],
     )
 
 
 def main():
-    parser = argparse.ArgumentParser(description="EEG Seizure Detection LOOCV pipeline")
-    parser.add_argument("--skip-cache", action="store_true",
-                        help="Skip cache building (use existing caches)")
-    parser.add_argument("--force-cache", action="store_true",
-                        help="Force rebuild of all patient caches")
+    parser = argparse.ArgumentParser(
+        description="Run LOOCV pipeline for EEG seizure detection."
+    )
     parser.add_argument("--smoke", action="store_true",
-                        help="Run smoke test: cache only first patient, no LOOCV")
-    parser.add_argument("--log-level", default="INFO",
-                        choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+                        help="Quick test on a single patient (chb01)")
+    parser.add_argument("--skip-cache", action="store_true",
+                        help="Skip cache build (assumes cache is ready)")
+    parser.add_argument("--force-cache", action="store_true",
+                        help="Rebuild cache even if exists")
+    parser.add_argument("--skip-loocv", action="store_true",
+                        help="Skip LOOCV (re-runs only stats and figures from existing CSV)")
+    parser.add_argument("--shift", action="store_true",
+                        help="Also run distribution-shift analysis (slow, optional)")
+    parser.add_argument("--no-stats", action="store_true",
+                        help="Skip statistical tests (Wilcoxon + bootstrap)")
     args = parser.parse_args()
 
-    setup_logging(args.log_level)
+    setup_logging()
     logger = logging.getLogger("run_loocv")
 
-    logger.info("=" * 70)
-    logger.info("EEG Seizure Detection — LOOCV Pipeline")
-    logger.info("=" * 70)
-    logger.info(f"CHB-MIT path: {config.CHB_MIT_PATH}")
-    logger.info(f"Output path:  {config.OUTPUT_PATH}")
-    logger.info(f"Patients:     {len(config.PATIENTS)}  ({config.PATIENTS[0]}..{config.PATIENTS[-1]})")
-    logger.info(f"Models:       {config.MODELS_TO_RUN}")
-
+    # Smoke test override
     if args.smoke:
-        logger.info("\n[SMOKE TEST] Building cache for first patient only...")
-        cache.build_patient_cache(config.PATIENTS[0], force=args.force_cache)
-        logger.info("Smoke test complete.")
-        return
+        config.PATIENTS = ["chb01"]
+        logger.info("[SMOKE] reduced to 1 patient")
 
-    # ---------------- Stage 1: cache features ----------------
-    if not args.skip_cache:
-        logger.info("\n--- Stage 1: building per-patient feature caches ---")
+    # Stage 1: Cache
+    if not args.skip_cache and not args.skip_loocv:
+        logger.info("Stage 1: building per-patient caches...")
         cache.build_all_caches(force=args.force_cache)
 
-    # ---------------- Stage 2: LOOCV ----------------
-    logger.info("\n--- Stage 2: running LOOCV ---")
-    df = loocv.run_loocv()
+    # Stage 2: LOOCV
+    if not args.skip_loocv:
+        logger.info("Stage 2: running LOOCV...")
+        df = loocv.run_loocv()
+    else:
+        per_fold_csv = config.TABLES_PATH / "loocv_per_fold.csv"
+        if not per_fold_csv.exists():
+            logger.error(f"--skip-loocv requires {per_fold_csv} to exist")
+            sys.exit(1)
+        df = pd.read_csv(per_fold_csv)
+        logger.info(f"Loaded {len(df)} rows from {per_fold_csv}")
 
-    # ---------------- Stage 3: figures + tables ----------------
-    logger.info("\n--- Stage 3: generating figures and summary tables ---")
-    visualize.generate_all_figures(df)
+    # Stage 3: Statistical tests
+    if not args.no_stats:
+        logger.info("Stage 3: statistical tests (Wilcoxon + bootstrap CI)...")
+        statistical_tests.run_all_tests(df, save_dir=config.TABLES_PATH)
 
-    logger.info("\n--- DONE ---")
-    logger.info(f"Tables: {config.TABLES_PATH}")
-    logger.info(f"Figures: {config.FIGURES_PATH}")
+    # Stage 4: Distribution shift (optional, slow)
+    df_shift = None
+    if args.shift:
+        logger.info("Stage 4: distribution-shift analysis...")
+        df_shift = distribution_shift.compute_all_shifts(per_fold_results=df)
+        df_shift.to_csv(config.TABLES_PATH / "distribution_shift.csv", index=False)
+
+    # Stage 5: Figures
+    logger.info("Stage 5: generating figures...")
+    visualize.generate_all_figures(df, df_shift=df_shift)
+
+    logger.info("\nDone. Results in %s", config.OUTPUT_PATH.resolve())
 
 
 if __name__ == "__main__":

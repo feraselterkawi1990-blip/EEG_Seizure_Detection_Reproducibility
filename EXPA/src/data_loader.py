@@ -95,6 +95,10 @@ def load_edf(edf_path: Path) -> mne.io.Raw:
                                 ecg=False, eog=False, exclude="bads")
     if len(eeg_picks) > 0:
         raw.pick(eeg_picks)
+    # Resample to canonical rate (256 Hz). Some CHB-MIT recordings are at
+    # 1024 Hz; without this step, segment counts and cache sizes blow up by 4x.
+    if abs(raw.info["sfreq"] - config.SAMPLING_RATE) > 0.5:
+        raw.resample(config.SAMPLING_RATE, npad="auto", verbose="ERROR")
     return raw
 
 

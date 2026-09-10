@@ -2,16 +2,35 @@
 Configuration for EEG Seizure Detection Pipeline (LOOCV)
 =========================================================
 Edit this file to match your local environment.
+
+CHANGELOG (v2 - May 2026):
+  - FIX #3: Corrected patient documentation (chb21 = re-recording of chb01,
+            NOT chb24). Removed false claim about chb24.
+  - FIX #4: All numerical parameters previously hard-coded in loocv.py are
+            now declared here, restoring the §3.6.3 "single source of truth"
+            promise.
+  - FIX #5: Removed unused ICA_VARIANCE_THRESHOLD. Replaced with
+            ICA_FRONTAL_ASYMMETRY_THRESHOLD and ICA_FRONTAL_PREFIXES which
+            match what preprocessing.py actually does.
+  - NEW:    XGB_PARAMS for XGBoost LOOCV.
+  - NEW:    SVM cache_size raised to 2 GB for ~2x speedup on CPU.
+  - NEW:    XGBOOST added to MODELS_TO_RUN by default.
 """
 
 from pathlib import Path
+import os
 
 # =====================================================================
 # PATHS - EDIT THESE
 # =====================================================================
 # Root directory of the CHB-MIT dataset (downloaded from PhysioNet).
-# Should contain subfolders: chb01/, chb02/, ..., chb22/, etc.
-CHB_MIT_PATH = Path(r"C:\Users\ASUS\Desktop\EEG_DATA\chbmit")
+# Should contain subfolders: chb01/, chb02/, ..., chb23/, etc.
+# Override via environment variable for portability:
+#     CHBMIT_PATH=/your/path  python scripts/run_loocv.py
+CHB_MIT_PATH = Path(os.environ.get(
+    "CHBMIT_PATH",
+    r"C:\Users\ASUS\Desktop\EEG_DATA\chbmit"
+))
 
 # Where intermediate features and final results are stored.
 OUTPUT_PATH = Path("./results")
@@ -23,12 +42,15 @@ LOGS_PATH = OUTPUT_PATH / "logs"
 # =====================================================================
 # PATIENTS
 # =====================================================================
-# CHB-MIT contains 23 case folders (chb01-chb24, chb21 was re-recorded as chb24).
-# We use the 22 primary patient folders matching the thesis scope.
+# CHB-MIT contains 24 case folders (chb01-chb24).
+# Per Shoeb (2009), chb21 is a re-recording of chb01 obtained ~1.5 years
+# later under different conditions. To avoid subject overlap we exclude
+# chb21. We also exclude chb23 and chb24 from this study to match the
+# scope of the original thesis (Shoeb 2009 reported 22 patients; we use
+# 21 of those 22 by additionally dropping chb21).
+#
+# Result: 21 patients in {chb01..chb20, chb22}.
 PATIENTS = [f"chb{i:02d}" for i in range(1, 23) if i != 21]  # 21 patients
-# Note: chb21 is the re-recording of chb01 with different equipment configuration;
-# excluding it avoids subject overlap. To use all 23 cases, set:
-# PATIENTS = [f"chb{i:02d}" for i in range(1, 24) if i != 21]
 
 # =====================================================================
 # SIGNAL PROCESSING
@@ -42,9 +64,19 @@ FILTER_LENGTH = "auto"       # FIR filter length (let MNE choose)
 ICA_N_COMPONENTS = 20        # Number of components to extract
 ICA_RANDOM_STATE = 97
 ICA_METHOD = "fastica"
-# Artifact rejection thresholds
-ICA_KURTOSIS_THRESHOLD = 5.0    # Reject components with kurtosis > 5 (likely artifact)
-ICA_VARIANCE_THRESHOLD = 0.95   # Reject components explaining >95% variance (likely line noise / huge artifact)
+
+# --- ICA artifact rejection ---
+# Two criteria, applied OR-wise:
+#   1. Excess kurtosis (transient artifacts: blinks, jerks, electrode pops)
+#   2. Frontal-asymmetry ratio (ocular components dominated by frontal channels)
+ICA_KURTOSIS_THRESHOLD = 5.0
+ICA_FRONTAL_ASYMMETRY_THRESHOLD = 0.6
+# Channel-name prefixes considered "frontal" for the asymmetry test.
+# CHB-MIT bipolar derivations starting with FP1- or FP2- are the canonical
+# scalp ocular references. (Thesis text §3.2.3 also lists F3/F4/F7/F8;
+# this prefix-based implementation captures derivations like FP1-F3,
+# FP1-F7, FP2-F4, FP2-F8 which include those electrodes as references.)
+ICA_FRONTAL_PREFIXES = ("FP1", "FP2")
 
 # Segmentation
 SEGMENT_DURATION_SEC = 1.0    # Window length
@@ -64,22 +96,34 @@ BANDS = {
 # Time-domain features per channel:
 # mean, std, max, min, peak-to-peak (= 5 features)
 # Spectral features per channel: 4 band powers
-# 23 channels × 9 features = 207 features per epoch (matches thesis)
+# 23 channels x 9 features = 207 features per epoch (matches thesis)
 N_CHANNELS = 23
 N_FEATURES_PER_CHANNEL = 9
 N_TOTAL_FEATURES = N_CHANNELS * N_FEATURES_PER_CHANNEL  # 207
+
+# Variance-threshold feature filter (§3.3.4 of thesis Table 3.1).
+# Empirically removes 115/207 features on every fold, retaining 92.
+VARIANCE_THRESHOLD = 1e-10
 
 # =====================================================================
 # CLASS BALANCING
 # =====================================================================
 # Strategy for handling imbalance in TRAINING set
-# Options: "undersample" (drop non-seizure to match seizure count)
-#          "class_weight" (keep all data, weight classes inversely)
+# Options:
+#   "class_weight" : default. Stratified subsample non-ictal to MAX_TRAIN_NEG,
+#                    keep all ictal, then use class_weight="balanced" in classifier.
+#                    Matches thesis §3.5.3 (~1:5 ictal:non-ictal ratio).
+#   "undersample"  : additional pre-step that balances 1:1 BEFORE the MAX_TRAIN_NEG
+#                    cap. Useful for ablations comparing 1:1 vs 1:5 ratios.
 TRAIN_BALANCE_STRATEGY = "class_weight"
 
-# Test set is always balanced (random undersampling to match seizure count)
-# This matches the thesis methodology and avoids inflated accuracy from imbalance.
+# Test set is always balanced (50/50) per held-out patient (§3.5.2).
 TEST_BALANCE = True
+
+# Maximum non-ictal segments retained in the training pool after pooling
+# across the other 20 patients. All ictal segments are kept.
+# Thesis Table 3.1: 100,000.
+MAX_TRAIN_NEG = 100_000
 
 # =====================================================================
 # RANDOM SEEDS (for reproducibility)
@@ -105,6 +149,27 @@ SVM_PARAMS = {
     "probability": True,        # Required for AUC
     "class_weight": "balanced",
     "random_state": RANDOM_SEED,
+    "cache_size": 2000,         # MB; default 200 is too small for 40k samples
+}
+# SVM training subsample (Thesis Table 3.1: 40,000)
+SVM_TRAIN_SUBSAMPLE = 40_000
+
+# XGBoost parameters - new in v2.
+# Conservative defaults that train in ~5-10 min/fold on CPU with hist method.
+XGB_PARAMS = {
+    "n_estimators": 500,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "tree_method": "hist",      # CPU-efficient histogram method
+    "n_jobs": -1,
+    "random_state": RANDOM_SEED,
+    "objective": "binary:logistic",
+    "eval_metric": "auc",
+    # Note: scale_pos_weight=1 because we already balance via subsampling
+    # and class_weight is not directly supported in XGBClassifier — we
+    # achieve the balance through MAX_TRAIN_NEG ratio.
 }
 
 LSTM_PARAMS = {
@@ -133,12 +198,27 @@ CNN_PARAMS = {
 }
 
 # =====================================================================
-# LOOCV
+# LOOCV PROTOCOL PARAMETERS
 # =====================================================================
-# Models to evaluate. Set to subset for faster runs during debugging.
-# Default is RF + SVM only (fastest, no GPU needed).
-# To add LSTM and CNN, change to: ["RF", "SVM", "LSTM", "CNN"]
-MODELS_TO_RUN = ["RF", "SVM"]
+# Internal validation split for threshold tuning (§3.5.4 of thesis).
+# A fraction of the (post-MAX_TRAIN_NEG) training pool is held out as
+# validation, used ONLY to pick the operating threshold via Youden's J.
+# Floor of 1000 ensures the validation set is large enough to give a
+# stable threshold estimate even on smallest training pools.
+VAL_SPLIT_RATIO = 0.10
+VAL_SPLIT_FLOOR = 1000
+
+# Threshold search (§3.5.4 of thesis Table 3.1).
+THRESHOLD_RANGE = (0.05, 0.95)
+THRESHOLD_N_STEPS = 19   # 19 evenly spaced thresholds in [0.05, 0.95]
+
+# =====================================================================
+# MODELS TO RUN
+# =====================================================================
+# Default: include XGBoost (added in v2).
+# To run only sklearn classics: ["RF", "SVM", "XGB"]
+# To include deep models (CPU 8-15 hours): ["RF", "SVM", "XGB", "CNN", "LSTM"]
+MODELS_TO_RUN = ["RF", "SVM", "XGB"]
 
 # Save per-patient diagnostic plots (training curves, confusion matrices)
 SAVE_DIAGNOSTICS = True
