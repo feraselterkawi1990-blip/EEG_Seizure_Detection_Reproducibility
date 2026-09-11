@@ -1,204 +1,805 @@
 # EEG Seizure Detection — LOOCV Pipeline (v2)
 
-Pipeline لتنفيذ Leave-One-Patient-Out Cross-Validation على قاعدة CHB-MIT
-لرسالة "When Cross-Patient Validation Reveals the True Limits of Classical
-Machine Learning for EEG Seizure Detection".
+A reproducible Python pipeline for **Leave-One-Patient-Out Cross-Validation (LOOCV)** on the **CHB-MIT Scalp EEG Database**.
 
-**هذه نسخة v2 (مايو 2026)**. للتغييرات الكاملة عن النسخة الأولى، انظر
-`CHANGELOG.md`.
+The pipeline implements the classical machine-learning experiments reported in the thesis:
 
----
+> **The Window-Normalization Effect in EEG Seizure Detection: A Methodological Audit**
 
-## ما الجديد في v2
+The primary Part I experiment evaluates **Random Forest (RF), Support Vector Machine (SVM), and XGBoost (XGB)** under strict patient-level cross-validation.
 
-- **XGBoost** أُضيف كنموذج ثالث رئيسي (issue #20).
-- **Threshold tuning موحَّد** لكل النماذج عبر Youden's J على نفس validation
-  set (issue #1، #2).
-- **اختبارات إحصائية حقيقية**: Wilcoxon signed-rank مع Holm correction +
-  bootstrap 95% CIs (issues #21، #22).
-- **تحليل آلي للانهيار**: MMD + Wasserstein + Mahalanobis لكل مريض،
-  مع Spearman correlations مع الـ AUC (issue #23).
-- **كل المعلمات** مُنقولة إلى `config.py` (issue #4) — كما تَعِد §3.6.3
-  من الأطروحة.
-- **توثيق المرضى** مُصحَّح (issue #3): chb21 = إعادة تسجيل لـ chb01
-  (وليس chb24)، 21 مريضاً مستخدماً.
-- **معلمة ICA ميتة** (`ICA_VARIANCE_THRESHOLD`) أُزيلت، استُبدلت بـ
-  `ICA_FRONTAL_ASYMMETRY_THRESHOLD` و `ICA_FRONTAL_PREFIXES` تطابقان
-  ما يفعله `preprocessing.py` فعلاً (issue #5).
+This repository contains the source code, configuration, and execution instructions required to reproduce the experiment. **CHB-MIT EEG recordings and generated cache files are not included.**
 
 ---
 
-## 1. متطلبات النظام
+## 1. Overview
 
-- Python 3.10+
-- 16 GB RAM كحد أدنى (32 GB موصى به)
-- 50 GB مساحة على القرص (للبيانات + الكاش)
-- GPU (اختياري، لتسريع LSTM/CNN فقط)
+The main research question addressed by Part I is whether classical machine-learning models can generalize reliably across previously unseen patients when evaluated using strict patient-level cross-validation.
+
+The primary pipeline uses:
+
+* 21-patient LOOCV
+* 1-second EEG windows
+* 50% overlap
+* 256 Hz sampling rate
+* 23 canonical bipolar EEG channels
+* 207 handcrafted features per segment
+* 0.5–30 Hz band-pass filtering
+* ICA preprocessing
+* Training-only fitting of classical feature transformations
+* Validation-based threshold selection using Youden's J statistic
+* Random Forest, SVM, and XGBoost classifiers
 
 ---
 
-## 2. التثبيت
+## 2. Dataset
+
+The experiments use the **CHB-MIT Scalp EEG Database** available through PhysioNet.
+
+The final LOOCV cohort contains:
+
+```text
+chb01–chb20 + chb22
+```
+
+for a total of **21 patients**.
+
+`chb21` is excluded because it is a re-recording of `chb01`.
+
+The repository does **not** contain the CHB-MIT EEG recordings. Users must obtain the dataset separately and provide its local path through `config.py` or the `CHBMIT_PATH` environment variable.
+
+Dataset source:
+
+https://physionet.org/content/chbmit/1.0.0/
+
+---
+
+## 3. System Requirements
+
+Recommended environment:
+
+* Python 3.10+
+* 16 GB RAM minimum
+* 32 GB RAM recommended
+* At least 50 GB of free disk space for dataset processing and generated cache
+* GPU is not required for the RF/SVM/XGB experiment
+
+The primary classical Part I experiment runs on CPU.
+
+---
+
+## 4. Installation
+
+The Part I experiment is located in:
+
+```text
+CLASSICAL BASELINE/
+└── PART I/
+    └── experiment/
+```
+
+Before installing the dependencies, move into the experiment directory.
+
+### Windows PowerShell
+
+```powershell
+cd ".\CLASSICAL BASELINE\PART I\experiment"
+```
+
+### Linux/macOS
 
 ```bash
-cd seizure_pipeline_v2
+cd "./CLASSICAL BASELINE/PART I/experiment"
+```
+
+Create a virtual environment:
+
+```bash
 python -m venv venv
-source venv/bin/activate           # على ويندوز: venv\Scripts\activate
+```
+
+Activate it.
+
+### Windows PowerShell
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+### Linux/macOS
+
+```bash
+source venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
-XGBoost مُدرج بالفعل في `requirements.txt`. TensorFlow اختياري —
-أزِل التعليق إن أردتَ تشغيل LSTM/CNN.
+The main dependencies include:
+
+* NumPy
+* SciPy
+* pandas
+* scikit-learn
+* MNE
+* Matplotlib
+* XGBoost
+
+TensorFlow is optional and is only required if the LSTM/CNN branches are enabled.
 
 ---
 
-## 3. الإعداد
+## 5. Dataset Configuration
 
-### الطريقة 1 (سريع): تعديل `config.py`
+The dataset path can be configured in two ways.
+
+### Option 1 — Edit `config.py`
+
+Set:
+
 ```python
 CHB_MIT_PATH = Path(r"/your/path/to/chbmit")
 ```
 
-### الطريقة 2 (موصى به للنشر): متغيّر بيئة
+### Option 2 — Environment variable
+
+#### Windows PowerShell
+
+```powershell
+$env:CHBMIT_PATH = "C:\path\to\chbmit"
+```
+
+#### Linux/macOS
+
 ```bash
-export CHBMIT_PATH=/your/path/to/chbmit       # Linux/Mac
-$env:CHBMIT_PATH = "C:\path\to\chbmit"        # PowerShell
+export CHBMIT_PATH=/your/path/to/chbmit
+```
+
+Using the environment variable is recommended when sharing the repository because machine-specific paths do not need to be committed to Git.
+
+---
+
+# 6. Signal Processing and Feature Extraction
+
+Each EEG recording is processed using the following pipeline:
+
+```text
+CHB-MIT EDF
+    ↓
+EEG channel selection
+    ↓
+0.5–30 Hz band-pass filtering
+    ↓
+ICA artifact processing
+    ↓
+1-second segmentation
+    ↓
+50% overlap
+    ↓
+Feature extraction
+    ↓
+207-dimensional feature vector
+```
+
+### Sampling
+
+* Sampling rate: **256 Hz**
+* Segment duration: **1 second**
+* Samples per segment: **256**
+* Overlap: **50%**
+
+### EEG channels
+
+The pipeline uses 23 canonical bipolar EEG channels.
+
+### Features
+
+Nine features are extracted from each channel.
+
+**Time-domain features**
+
+* Mean
+* Standard deviation
+* Maximum
+* Minimum
+* Peak-to-peak amplitude
+
+**Frequency-domain features**
+
+* Delta power: 0.5–4 Hz
+* Theta power: 4–8 Hz
+* Alpha power: 8–13 Hz
+* Beta power: 13–30 Hz
+
+Therefore:
+
+```text
+23 channels × 9 features = 207 features
 ```
 
 ---
 
-## 4. التشغيل
+# 7. ICA Preprocessing
 
-### اختبار سريع (مريض واحد، ~10 دقائق)
-```bash
-python scripts/run_loocv.py --smoke
+ICA is applied during signal preprocessing.
+
+Configuration:
+
+```text
+ICA method: FastICA
+Number of components: 20
+Random state: 97
+Kurtosis threshold: 5.0
+Frontal asymmetry threshold: 0.6
 ```
 
-### تشغيل كامل (RF + SVM + XGB، ~5-7 ساعات على CPU)
+The preprocessing implementation is located in:
+
+```text
+src/preprocessing.py
+```
+
+---
+
+# 8. Leave-One-Patient-Out Cross-Validation
+
+The primary evaluation protocol is strict **Leave-One-Patient-Out Cross-Validation**.
+
+For each fold:
+
+```text
+20 patients → training pool
+1 patient    → held-out test patient
+```
+
+The process is repeated for all 21 patients:
+
+```text
+21 patients = 21 LOOCV folds
+```
+
+The held-out patient's data are not used for fitting the model or for fitting the classical feature preprocessing transformations.
+
+### Test-set balancing
+
+With the default configuration:
+
+```python
+TEST_BALANCE = True
+```
+
+the held-out patient's test segments are balanced **after the patient-level split**.
+
+The balancing retains all available ictal segments and randomly samples an equal number of non-ictal segments.
+
+Therefore, the held-out patient remains completely excluded from model training and threshold tuning.
+
+---
+
+# 9. Training Data Handling
+
+The training pool contains all patients except the held-out patient.
+
+The default configuration uses:
+
+```python
+TRAIN_BALANCE_STRATEGY = "class_weight"
+```
+
+All available ictal training segments are retained.
+
+Because the pooled CHB-MIT training data contain a very large number of non-ictal segments, non-ictal samples are capped at:
+
+```python
+MAX_TRAIN_NEG = 100_000
+```
+
+when necessary.
+
+The classical classifiers then use class weighting to address the remaining class imbalance.
+
+For the default RF/SVM/XGB experiment, this produces a substantially reduced training pool while retaining all ictal samples.
+
+---
+
+# 10. Validation and Threshold Selection
+
+After construction of the training pool, a validation subset is drawn from the training data.
+
+Configuration:
+
+```python
+VAL_SPLIT_RATIO = 0.10
+VAL_SPLIT_FLOOR = 1000
+```
+
+The validation subset is derived from the training pool and is not the held-out patient.
+
+The same validation split is used for all enabled classifiers in a fold so that threshold selection is comparable across models.
+
+The classification threshold is selected using **Youden's J statistic**:
+
+```text
+J = sensitivity + specificity − 1
+```
+
+The search uses 19 evenly spaced thresholds:
+
+```text
+0.05, 0.10, 0.15, ..., 0.90, 0.95
+```
+
+The selected threshold is then applied to the held-out test patient.
+
+The test patient is therefore not used for threshold optimization.
+
+---
+
+# 11. Classical Feature Preprocessing
+
+Before model fitting, the handcrafted feature matrix is processed as follows:
+
+```text
+NaN/Inf handling
+    ↓
+VarianceThreshold
+    ↓
+StandardScaler
+    ↓
+Model fitting
+```
+
+Configuration:
+
+```python
+VARIANCE_THRESHOLD = 1e-10
+```
+
+Both `VarianceThreshold` and `StandardScaler` are **fitted on the training subset only**.
+
+The fitted transformations are then applied unchanged to the validation and held-out test data.
+
+This prevents the held-out test patient from influencing the learned feature transformation parameters.
+
+The number of retained features is also recorded for each fold.
+
+---
+
+# 12. Models
+
+The default Part I configuration is:
+
+```python
+MODELS_TO_RUN = ["RF", "SVM", "XGB"]
+```
+
+## Random Forest
+
+Configuration:
+
+```text
+n_estimators = 200
+max_depth = None
+min_samples_split = 2
+class_weight = balanced
+random_state = 42
+```
+
+The Random Forest therefore uses **200 trees**.
+
+## Support Vector Machine
+
+Configuration:
+
+```text
+kernel = RBF
+C = 1.0
+gamma = scale
+probability = True
+class_weight = balanced
+random_state = 42
+cache_size = 2000 MB
+```
+
+For computational efficiency, the SVM training set is limited to a maximum of:
+
+```text
+40,000 samples
+```
+
+when the training set is larger.
+
+This subsampling is performed after the training/validation split and after the classical feature transformations have been fitted on the training subset.
+
+## XGBoost
+
+Configuration:
+
+```text
+n_estimators = 500
+max_depth = 6
+learning_rate = 0.05
+subsample = 0.8
+colsample_bytree = 0.8
+tree_method = hist
+random_state = 42
+objective = binary:logistic
+eval_metric = auc
+```
+
+No early stopping is used for the XGBoost classifier in the primary LOOCV implementation.
+
+---
+
+# 13. Evaluation Metrics
+
+For each held-out patient and model, the pipeline reports:
+
+* Accuracy
+* Sensitivity
+* Specificity
+* ROC AUC
+* TP
+* TN
+* FP
+* FN
+* Number of test samples
+* Wilson confidence interval for accuracy
+* Selected validation threshold
+* Number of retained features
+* Model fitting time
+
+The final summary reports the mean and standard deviation across the LOOCV folds.
+
+---
+
+# 14. Main Entry Point
+
+The main experiment is executed through:
+
+```text
+scripts/run_loocv.py
+```
+
+The main LOOCV implementation is:
+
+```text
+src/loocv.py
+```
+
+All commands in this README assume that the current working directory is:
+
+```text
+CLASSICAL BASELINE/PART I/experiment/
+```
+
+Run the complete pipeline with:
+
 ```bash
 python scripts/run_loocv.py
 ```
 
-### مع تحليل توزيع البيانات (مدّة إضافية ~30 دقيقة)
-```bash
-python scripts/run_loocv.py --shift
+---
+
+# 15. Reproducing the Experiment
+
+## Important cache provenance
+
+The cache used for the reported/reproduced Part I experiment was **generated previously using a separate cache-generation codebase** located in:
+
+```text
+CLASSICAL BASELINE/
+└── PART I/
+    ├── cache_generation/
+    └── experiment/
 ```
 
-### استخدام كاش موجود مسبقاً (يتخطى مرحلة بناء الكاش)
+The `cache_generation` directory contains the code and documentation for the separate cache-generation workflow.
+
+The `experiment` directory contains the LOOCV experiment itself.
+
+Although the experiment repository also contains:
+
+```text
+src/cache.py
+```
+
+the `experiment/src/cache.py` implementation was **not used to generate the historical cache used for the reported/reproduced Part I results**.
+
+The historical cache was generated previously and then reused because the EEG preprocessing and feature-extraction stage is computationally expensive.
+
+The workflow used for the reported/reproduced experiment was therefore:
+
+```text
+CHB-MIT recordings
+        ↓
+Separate cache-generation workflow
+        ↓
+Pre-generated patient cache
+        ↓
+Part I experiment
+        ↓
+scripts/run_loocv.py
+        ↓
+21-patient LOOCV
+        ↓
+RF / SVM / XGB results
+```
+
+The cache files themselves are intentionally **not included in this repository**.
+
+For a new reproduction, researchers should follow the documented cache-generation workflow in:
+
+```text
+CLASSICAL BASELINE/PART I/cache_generation/
+```
+
+and then use the resulting compatible cache with the experiment pipeline.
+
+---
+
+# 16. Using an Existing Cache
+
+If compatible patient cache files have already been generated and placed in the configured cache location, the cache-building stage can be skipped:
+
 ```bash
 python scripts/run_loocv.py --skip-cache
 ```
 
-### إعادة الاختبارات الإحصائية فقط (من نتائج موجودة)
+This runs the experimental LOOCV stage without rebuilding the cache.
+
+---
+
+# 17. Smoke Test
+
+A single-patient smoke test can be used to verify that the pipeline and environment are working:
+
+```bash
+python scripts/run_loocv.py --smoke --skip-cache
+```
+
+This uses `chb01` only and is intended as a functional test rather than a scientific evaluation.
+
+---
+
+# 18. Statistical Analysis
+
+Statistical analysis can be run separately after LOOCV results have been generated:
+
 ```bash
 python scripts/run_statistical_tests.py
 ```
 
-### إضافة LSTM/CNN
-في `config.py`:
-```python
-MODELS_TO_RUN = ["RF", "SVM", "XGB", "CNN", "LSTM"]
-```
-ثم:
+The repository includes:
+
+* Wilcoxon signed-rank tests
+* Holm multiple-comparison correction
+* Bootstrap confidence intervals
+
+---
+
+# 19. Distribution-Shift Analysis
+
+The repository also contains an optional patient-level distribution-shift analysis using:
+
+* Maximum Mean Discrepancy (MMD)
+* Wasserstein distance
+* Mahalanobis distance
+* Spearman correlation with model performance
+
+Run:
+
 ```bash
-pip install tensorflow
-python scripts/run_loocv.py --skip-cache
+python scripts/run_distribution_shift.py
 ```
+
+The main runner also supports the distribution-shift option:
+
+```bash
+python scripts/run_loocv.py --shift
+```
+
+This analysis is supplementary to the primary LOOCV experiment.
 
 ---
 
-## 5. الزمن المتوقع (Ryzen 9 7940HS، CPU فقط)
+# 20. Output Files
 
-| المرحلة | الزمن |
-|---------|-------|
-| بناء الكاش (21 مريضاً، مرة واحدة) | 4-5 ساعات |
-| LOOCV — RF + SVM + XGB | 4-6 ساعات |
-| LOOCV — مع CNN فقط (إضافة) | +50 ساعة |
-| LOOCV — مع LSTM فقط (إضافة) | +100-200 ساعة |
-| الاختبارات الإحصائية | < 1 دقيقة |
-| تحليل توزيع البيانات | 20-40 دقيقة |
+The main generated outputs are stored under:
 
-نصيحة: ابنِ الكاش مرة واحدة، ثم استخدم `--skip-cache` لكل التجارب.
-
----
-
-## 6. المخرجات
-
-```
+```text
 results/
-├── cache/
-│   └── chb01.npz, chb02.npz, ...           # الكاش (لا يتغيّر)
 ├── tables/
-│   ├── loocv_per_fold.csv                  # كل صف = (model, patient)
-│   ├── loocv_summary.csv                   # mean ± std لكل model
-│   ├── thesis_headline_table.csv           # الجدول الرئيسي
-│   ├── bootstrap_ci_auc.csv                # NEW: CIs لكل model
-│   ├── bootstrap_ci_sensitivity.csv        # NEW
-│   ├── bootstrap_ci_specificity.csv        # NEW
-│   ├── wilcoxon_auc_holm.csv               # NEW: مقارنات بين models
-│   └── distribution_shift.csv              # NEW (مع --shift)
+│   ├── loocv_per_fold.csv
+│   ├── loocv_summary.csv
+│   ├── thesis_headline_table.csv
+│   ├── bootstrap_ci_auc.csv
+│   ├── bootstrap_ci_sensitivity.csv
+│   ├── bootstrap_ci_specificity.csv
+│   └── wilcoxon_auc_holm.csv
 ├── figures/
-│   ├── loocv_boxplots.png                  # توزيع الأداء
-│   ├── per_patient_accuracy.png            # دقة كل مريض
-│   ├── aggregated_confusion.png            # confusion matrices
-│   ├── catastrophic_collapse.png           # NEW: sens vs AUC
-│   └── distribution_shift.png              # NEW (مع --shift)
 └── logs/
     └── run_loocv.log
 ```
 
+Generated cache files may also exist locally under:
+
+```text
+results/cache/
+```
+
+but they should **not** be committed to GitHub.
+
 ---
 
-## 7. هيكل الكود (v2)
+# 21. Reproduced Part I Results
 
+The reproduced 21-patient LOOCV experiment produced:
+
+| Model |      Accuracy |   Sensitivity |   Specificity |               AUC |
+| ----- | ------------: | ------------: | ------------: | ----------------: |
+| RF    | 0.525 ± 0.057 | 0.137 ± 0.142 | 0.912 ± 0.120 | **0.575 ± 0.147** |
+| SVM   | 0.527 ± 0.069 | 0.259 ± 0.217 | 0.794 ± 0.194 | **0.540 ± 0.156** |
+| XGB   | 0.534 ± 0.065 | 0.170 ± 0.139 | 0.899 ± 0.110 | **0.503 ± 0.143** |
+
+Number of LOOCV folds:
+
+```text
+21
 ```
-seizure_pipeline_v2/
-├── config.py                       # كل الإعدادات (single source of truth)
+
+These values are generated from the repository's LOOCV implementation and are saved in:
+
+```text
+results/tables/loocv_summary.csv
+results/tables/thesis_headline_table.csv
+```
+
+---
+
+# 22. Repository Structure
+
+```text
+experiment/
+├── config.py
 ├── requirements.txt
-├── README.md                       # هذا الملف
-├── CHANGELOG.md                    # شرح كل تغيير عن v1
+├── README.md
+├── CHANGELOG.md
+│
 ├── src/
-│   ├── data_loader.py              # قراءة EDF + ملفات الـ summary
-│   ├── preprocessing.py            # bandpass + ICA + segmentation
-│   ├── features.py                 # 207 ميزة (5 time + 4 spectral × 23 ch)
-│   ├── cache.py                    # حفظ الميزات لكل مريض
-│   ├── models.py                   # RF, SVM, XGB, LSTM, CNN
-│   ├── metrics.py                  # accuracy, sens, spec, AUC + Wilson CI
-│   ├── loocv.py                    # حلقة LOOCV الرئيسية
-│   ├── statistical_tests.py        # NEW: Wilcoxon + bootstrap CI
-│   ├── distribution_shift.py       # NEW: MMD + Wasserstein + Mahalanobis
-│   └── visualize.py                # رسوم وجداول
-└── scripts/
-    ├── run_loocv.py                # المسار الرئيسي
-    ├── run_statistical_tests.py    # NEW: stats فقط
-    └── run_distribution_shift.py   # NEW: shift فقط
+│   ├── __init__.py
+│   ├── cache.py
+│   ├── data_loader.py
+│   ├── distribution_shift.py
+│   ├── features.py
+│   ├── loocv.py
+│   ├── metrics.py
+│   ├── models.py
+│   ├── preprocessing.py
+│   ├── statistical_tests.py
+│   └── visualize.py
+│
+├── scripts/
+│   ├── run_loocv.py
+│   ├── run_statistical_tests.py
+│   └── run_distribution_shift.py
+│
+└── results/
+    ├── figures/
+    ├── logs/
+    └── tables/
 ```
 
 ---
 
-## 8. الكاش متوافق مع v1
+# 23. Configuration
 
-ملفات `.npz` التي بنيتَها مع v1 (cache.py لم يتغيّر) تعمل مباشرةً مع v2.
-**لا تحتاج إلى إعادة بناء الكاش**. شغّل:
+The main experimental parameters are centralized in:
+
+```text
+config.py
+```
+
+Important parameters include:
+
+```python
+SAMPLING_RATE = 256
+
+LOWCUT = 0.5
+HIGHCUT = 30.0
+
+SEGMENT_DURATION_SEC = 1.0
+OVERLAP_RATIO = 0.5
+
+ICA_N_COMPONENTS = 20
+ICA_RANDOM_STATE = 97
+
+N_CHANNELS = 23
+N_FEATURES_PER_CHANNEL = 9
+N_TOTAL_FEATURES = 207
+
+TRAIN_BALANCE_STRATEGY = "class_weight"
+TEST_BALANCE = True
+MAX_TRAIN_NEG = 100_000
+
+RANDOM_SEED = 42
+
+VAL_SPLIT_RATIO = 0.10
+VAL_SPLIT_FLOOR = 1000
+
+THRESHOLD_RANGE = (0.05, 0.95)
+THRESHOLD_N_STEPS = 19
+```
+
+The configuration file should be treated as the **single source of truth for the experimental parameters**.
+
+---
+
+# 24. Windows / XGBoost Troubleshooting
+
+On some Windows systems, XGBoost may fail to import because the required Microsoft Visual C++ runtime is not installed.
+
+If an error mentions:
+
+```text
+vcomp140.dll
+```
+
+install the appropriate **Microsoft Visual C++ Redistributable for Visual Studio 2015–2022 (x64)** from Microsoft.
+
+After installation, restart PowerShell if necessary and verify XGBoost:
 
 ```bash
-python scripts/run_loocv.py --skip-cache
+python -c "import xgboost; print(xgboost.__version__)"
 ```
 
 ---
 
-## 9. ما الذي يجب تحديثه في النص بعد تشغيل v2
+# 25. Data and Privacy
 
-بعد تشغيل LOOCV الجديد والحصول على نتائج XGBoost والاختبارات الإحصائية،
-ستحتاج تحديث الفصول التالية في الأطروحة:
+This repository intentionally excludes:
 
-- **Table 4.1**: إضافة عمود XGBoost.
-- **§4.1**: إضافة فقرة عن XGBoost ومقارنته بـ RF/SVM (Wilcoxon).
-- **§4.1**: إضافة bootstrap CIs بدلاً من mean ± std فقط.
-- **§5.1**: استبدال "paired t-test" بـ "Wilcoxon signed-rank with Holm
-  correction"، ذكر القيم.
-- **§5.2.3**: استبدال الفرضيات النوعية بنتائج Spearman الكمية من
-  `distribution_shift.csv`.
-- **Abstract، §4.2.2، §6.1**: توحيد قائمة المرضى المنهارين.
-- **§3.1.2**: تصحيح وصف chb21/chb23/chb24.
+* CHB-MIT EDF recordings
+* EEG data
+* `.npz` cache files
+* Large generated intermediate files
+* Machine-specific virtual environments
 
-التفاصيل في `CHANGELOG.md` قسم "What is NOT addressed in v2".
+Users must obtain the dataset separately and configure the local dataset path.
+
+---
+
+# 26. Reproducibility Principle
+
+The purpose of this repository is not to distribute the EEG dataset or pre-generated cache files.
+
+Instead, it provides:
+
+```text
+Code
++
+Configuration
++
+Dependencies
++
+Execution instructions
++
+Evaluation protocol
++
+Generated result structure
+```
+
+so that another researcher can understand and reproduce the experimental procedure independently using the CHB-MIT dataset.
+
+The repository separates the **cache-generation workflow** from the **experimental LOOCV workflow** so that the provenance of the data-processing stage and the reported experiment remains explicit.
+
+---
+
+# 27. Citation
+
+If this code contributes to your research, please cite the associated thesis:
+
+> Firas Altarkawi, *The Window-Normalization Effect in EEG Seizure Detection: A Methodological Audit*, MSc Neuroscience, Bahçeşehir University.
