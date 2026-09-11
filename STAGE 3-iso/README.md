@@ -285,6 +285,97 @@ Keeping a separate cache prevents the two experimental conditions from being mix
 
 ---
 
+# Reproducing the Cache
+
+The Stage 3-Isolated cache can be rebuilt locally from the CHB-MIT dataset.
+
+The cache-generation implementation is:
+
+```text
+src/cache_iso.py
+```
+
+The main cache-building function is:
+
+```python
+build_all_iso_caches(force=False)
+```
+
+From the `STAGE 3-iso` directory, run:
+
+```powershell
+python -c "from src.cache_iso import build_all_iso_caches; build_all_iso_caches(force=False)"
+```
+
+This generates the patient-level ISO cache files under:
+
+```text
+results/cache_iso/
+```
+
+The generated cache contains:
+
+```text
+F
+y
+file_ids
+n_seizures
+```
+
+The raw EEG segments are not retained in the ISO cache.
+
+By default, `force=False` means that an existing patient cache is reused rather than regenerated.
+
+To explicitly regenerate existing cache files, use:
+
+```powershell
+python -c "from src.cache_iso import build_all_iso_caches; build_all_iso_caches(force=True)"
+```
+
+After the cache has been generated, run the Stage 3-Isolated LOOCV experiment:
+
+```powershell
+python scripts/run_loocv_iso_full.py
+```
+
+The LOOCV runner uses the existing `results/cache_iso/` files and does **not** automatically rebuild the cache.
+
+The default experiment runs:
+
+```text
+RF
+SVM
+XGB
+```
+
+The main per-fold results are written to:
+
+```text
+results/tables/loocv_per_fold_iso_full.csv
+```
+
+and the log is written to:
+
+```text
+results/logs/loocv_iso_full.log
+```
+
+Therefore, the complete reproduction sequence is:
+
+```text
+CHB-MIT dataset
+       ↓
+src/cache_iso.py
+       ↓
+results/cache_iso/
+       ↓
+scripts/run_loocv_iso_full.py
+       ↓
+results/tables/loocv_per_fold_iso_full.csv
+```
+
+---
+
 # Per-Segment Z-Score Normalization
 
 For every EEG segment and channel, normalization is performed independently over the time dimension.
@@ -307,32 +398,6 @@ The normalized signal is then passed to the same feature-extraction framework.
 This is deliberately different from the train-pool `StandardScaler` used in the Part I feature pipeline.
 
 In Stage 3-Isolated, the per-segment normalization is part of **cache generation**.
-
----
-
-# Reproducing the Cache
-
-The cache can be rebuilt locally from the CHB-MIT dataset.
-
-The relevant implementation is:
-
-```text
-src/cache_iso.py
-```
-
-The cache-building function is:
-
-```python
-build_all_iso_caches(force=False)
-```
-
-When rebuilding the cache, the generated files remain under:
-
-```text
-results/cache_iso/
-```
-
-These files are local derived artifacts and are **not distributed through this repository**.
 
 ---
 
@@ -392,10 +457,10 @@ For each fold:
 8. The same fitted feature filter is applied to validation and test data.
 9. The classifier is trained.
 10. Validation probabilities are used to select the decision threshold using Youden's J statistic.
-11. The selected threshold is applied to the completely held-out test patient.
+11. The selected threshold is applied to the held-out test patient.
 12. Performance metrics are recorded for that fold.
 
-This procedure prevents the held-out patient's data from influencing model fitting, feature selection, or threshold selection.
+The held-out test patient is not used for model fitting, feature filtering, or threshold selection. With the predefined `TEST_BALANCE=True` protocol, test labels are used only to construct the balanced evaluation subset before the final test metrics are calculated.
 
 ---
 
